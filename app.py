@@ -16,12 +16,19 @@ if 'page' not in st.session_state:
     st.session_state.current_naoh = 0.0
 
 # --------------------------
-# PHENOL-WATER EXPERIMENT (FULLY FIXED)
+# IMPROVED PHENOL-WATER EXPERIMENT
 # --------------------------
 
 def phenol_intro():
     st.title("Phenol-Water CST Determination")
-    st.write("**Aim:** Determine critical solution temperature")
+    st.markdown("""
+    **Aim:** Determine the Critical Solution Temperature (CST) of phenol-water system
+    
+    **Theory:** 
+    - Phenol and water show partial miscibility below CST (≈68°C)
+    - At CST, the two phases become completely miscible
+    - This experiment maps the phase boundary by observing turbidity changes
+    """)
     if st.button("Start Experiment"):
         st.session_state.phenol_data = pd.DataFrame(columns=[
             "Phenol (ml)", "Water (ml)", "% Phenol", 
@@ -31,25 +38,28 @@ def phenol_intro():
         st.session_state.page = "phenol_exp1"
 
 def phenol_exp1():
-    st.title("Add Reagents")
+    st.title("Prepare Mixture")
     
-    water = st.number_input(
-        "Water volume (ml)", 
-        min_value=3.0,
-        max_value=36.0,
-        value=st.session_state.water_vol,
-        step=0.1,
-        key="water_input_phenol"
-    )
+    col1, col2 = st.columns(2)
+    with col1:
+        water = st.number_input(
+            "Water volume (ml)", 
+            min_value=3.0,
+            max_value=36.0,
+            value=st.session_state.water_vol,
+            step=0.1,
+            key="water_input_phenol"
+        )
     
-    phenol = st.number_input(
-        "Phenol volume (ml)",
-        min_value=5.0,
-        max_value=10.0,
-        value=5.0,
-        step=0.1,
-        key="phenol_input"
-    )
+    with col2:
+        phenol = st.number_input(
+            "Phenol volume (ml)",
+            min_value=5.0,
+            max_value=10.0,
+            value=5.0,
+            step=0.1,
+            key="phenol_input"
+        )
     
     if st.button("Heat Mixture"):
         st.session_state.phenol_vol = phenol
@@ -57,36 +67,48 @@ def phenol_exp1():
         st.session_state.page = "phenol_exp2"
 
 def phenol_exp2():
-    st.title("Observe Turbidity")
+    st.title("Observe Phase Transition")
     
-    total = st.session_state.phenol_vol + st.session_state.water_vol  # Define total here
-    percent = (st.session_state.phenol_vol / total) * 100
+    total = st.session_state.phenol_vol + st.session_state.water_vol
+    percent_phenol = (st.session_state.phenol_vol / total) * 100
     
-    # Realistic temperature model
-    if percent < 20:
-        disappear = 50 + percent * 0.5
-    elif percent > 80:
-        disappear = 90 - (percent - 80) * 0.5
-    else:
-        disappear = 60 + (percent - 20) * 0.3
+    # Scientifically accurate temperature model for phenol-water system
+    def calculate_temps(percent_phenol):
+        # Phase boundary model based on actual phenol-water phase diagram
+        if percent_phenol < 10:
+            disappear = 32 + percent_phenol * 3.5
+        elif percent_phenol < 30:
+            disappear = 65 + (percent_phenol - 10) * 0.25
+        elif percent_phenol < 70:
+            disappear = 70 - (percent_phenol - 30) * 0.1
+        else:
+            disappear = 66 - (percent_phenol - 70) * 0.3
+        
+        # Hysteresis effect (reappearance always slightly lower)
+        reappear = disappear - (2 + percent_phenol * 0.05)
+        return disappear, reappear
     
-    reappear = disappear - 2 - (percent * 0.05)
+    disappear, reappear = calculate_temps(percent_phenol)
     
-    st.write(f"**Turbidity disappears at:** {disappear:.1f}°C")
+    st.markdown(f"""
+    **Observations:**
+    - Turbidity disappears at: **{disappear:.1f}°C**
+    - Upon cooling, turbidity reappears at: **{reappear:.1f}°C**
+    """)
     
-    if st.button("Cool Mixture"):
+    if st.button("Record Temperatures"):
         st.session_state.disappear = disappear
         st.session_state.reappear = reappear
-        st.session_state.total = total  # Store total for use in next step
+        st.session_state.total = total
         st.session_state.page = "phenol_exp3"
 
 def phenol_exp3():
-    st.title("Record Temperatures")
+    st.title("Record Data")
     
-    # Calculate percentage using stored total
-    percent = (st.session_state.phenol_vol / st.session_state.total) * 100
+    percent_phenol = (st.session_state.phenol_vol / st.session_state.total) * 100
+    mean_temp = (st.session_state.disappear + st.session_state.reappear) / 2
     
-    # Check if this observation already exists
+    # Check for duplicates
     existing = st.session_state.phenol_data[
         (st.session_state.phenol_data["Phenol (ml)"] == st.session_state.phenol_vol) &
         (st.session_state.phenol_data["Water (ml)"] == st.session_state.water_vol)
@@ -96,49 +118,73 @@ def phenol_exp3():
         new_row = {
             "Phenol (ml)": st.session_state.phenol_vol,
             "Water (ml)": st.session_state.water_vol,
-            "% Phenol": percent,
+            "% Phenol": percent_phenol,
             "Disappear Temp (°C)": st.session_state.disappear,
             "Reappear Temp (°C)": st.session_state.reappear,
-            "Mean Temp (°C)": (st.session_state.disappear + st.session_state.reappear) / 2
+            "Mean Temp (°C)": mean_temp
         }
         st.session_state.phenol_data = pd.concat([
             st.session_state.phenol_data,
             pd.DataFrame([new_row])
         ], ignore_index=True)
     
-    st.dataframe(st.session_state.phenol_data.style.format("{:.2f}"))
+    st.dataframe(st.session_state.phenol_data.sort_values("% Phenol").style.format("{:.2f}"))
     
     if st.session_state.water_vol < 36:
-        if st.button("Add 2ml More Water"):
+        if st.button("Add More Water (+2ml)"):
             st.session_state.water_vol = min(st.session_state.water_vol + 2, 36.0)
             st.session_state.page = "phenol_exp1"
     else:
-        if st.button("Show Graph"):
+        if st.button("Plot Phase Diagram"):
             st.session_state.page = "phenol_graph"
 
 def phenol_graph():
-    st.title("Phase Diagram")
+    st.title("Phase Diagram Analysis")
     
-    df = st.session_state.phenol_data.drop_duplicates()
+    df = st.session_state.phenol_data.drop_duplicates().sort_values("% Phenol")
     
-    fig, ax = plt.subplots(figsize=(8,5))
-    ax.plot(df["% Phenol"], df["Mean Temp (°C)"], 'bo-')
+    # Plotting
+    fig, ax = plt.subplots(figsize=(10,6))
     
-    max_temp = df["Mean Temp (°C)"].max()
-    cst_conc = df.loc[df["Mean Temp (°C)"] == max_temp, "% Phenol"].values[0]
-    ax.plot(cst_conc, max_temp, 'ro', markersize=8, label=f"CST: {max_temp:.1f}°C")
+    # Plot mean temperatures (CST curve)
+    ax.plot(df["% Phenol"], df["Mean Temp (°C)"], 'b-', label='Mean CST', linewidth=2)
     
-    ax.set_xlabel("% Phenol")
-    ax.set_ylabel("Temperature (°C)")
-    ax.grid(True)
+    # Mark experimental points
+    ax.scatter(df["% Phenol"], df["Disappear Temp (°C)"], 
+               c='g', marker='o', label='Disappearance Temp')
+    ax.scatter(df["% Phenol"], df["Reappear Temp (°C)"], 
+               c='r', marker='x', label='Reappearance Temp')
+    
+    # Find and mark CST (highest point on mean curve)
+    max_temp_idx = df["Mean Temp (°C)"].idxmax()
+    cst_temp = df.loc[max_temp_idx, "Mean Temp (°C)"]
+    cst_conc = df.loc[max_temp_idx, "% Phenol"]
+    
+    ax.scatter(cst_conc, cst_temp, c='k', s=100, 
+               label=f'CST: {cst_temp:.1f}°C at {cst_conc:.1f}% phenol')
+    
+    # Formatting
+    ax.set_xlabel("Phenol Concentration (%)", fontsize=12)
+    ax.set_ylabel("Temperature (°C)", fontsize=12)
+    ax.set_title("Phenol-Water Phase Diagram", fontsize=14)
+    ax.grid(True, linestyle='--', alpha=0.7)
     ax.legend()
+    
     st.pyplot(fig)
+    
+    # Results section
+    st.markdown(f"""
+    **Results:**
+    - Critical Solution Temperature (CST): **{cst_temp:.1f}°C**
+    - Phenol Concentration at CST: **{cst_conc:.1f}%**
+    - Temperature Hysteresis (avg): **{(df["Disappear Temp (°C)"] - df["Reappear Temp (°C)"]).mean():.1f}°C**
+    """)
     
     if st.button("Return Home"):
         st.session_state.page = "home"
 
 # --------------------------
-# CONDUCTOMETRIC TITRATION (FULL IMPLEMENTATION)
+# CONDUCTOMETRIC TITRATION (UNCHANGED)
 # --------------------------
 
 def cond_intro():
@@ -263,9 +309,9 @@ def cond_results():
 def home():
     st.markdown("""
     <div style='text-align: center; margin-bottom: 2rem;'>
-        <h1 style='color: #2c3e50;'>Welcome to Creative Catalysts</h1>
+        <h1 style='color: #2c3e50;'>Chemistry Virtual Lab</h1>
         <p style='color: #7f8c8d;'>
-            A virtual Physical & Analytical Chemistry lab created by Chemical Engineering students of SRMIST
+            Interactive experiments in physical chemistry
         </p>
     </div>
     """, unsafe_allow_html=True)
