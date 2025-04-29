@@ -16,14 +16,14 @@ if 'page' not in st.session_state:
     st.session_state.current_naoh = 0.0
 
 # --------------------------
-# PHENOL-WATER EXPERIMENT (FIXED DUPLICATE ROWS)
+# PHENOL-WATER EXPERIMENT (FULLY FIXED)
 # --------------------------
 
 def phenol_intro():
     st.title("Phenol-Water CST Determination")
     st.write("**Aim:** Determine critical solution temperature")
     if st.button("Start Experiment"):
-        st.session_state.phenol_data = pd.DataFrame(columns=[  # Reset data
+        st.session_state.phenol_data = pd.DataFrame(columns=[
             "Phenol (ml)", "Water (ml)", "% Phenol", 
             "Disappear Temp (°C)", "Reappear Temp (°C)", "Mean Temp (°C)"
         ])
@@ -39,7 +39,7 @@ def phenol_exp1():
         max_value=36.0,
         value=st.session_state.water_vol,
         step=0.1,
-        key="water_input"
+        key="water_input_phenol"
     )
     
     phenol = st.number_input(
@@ -59,7 +59,7 @@ def phenol_exp1():
 def phenol_exp2():
     st.title("Observe Turbidity")
     
-    total = st.session_state.phenol_vol + st.session_state.water_vol
+    total = st.session_state.phenol_vol + st.session_state.water_vol  # Define total here
     percent = (st.session_state.phenol_vol / total) * 100
     
     # Realistic temperature model
@@ -77,10 +77,14 @@ def phenol_exp2():
     if st.button("Cool Mixture"):
         st.session_state.disappear = disappear
         st.session_state.reappear = reappear
+        st.session_state.total = total  # Store total for use in next step
         st.session_state.page = "phenol_exp3"
 
 def phenol_exp3():
     st.title("Record Temperatures")
+    
+    # Calculate percentage using stored total
+    percent = (st.session_state.phenol_vol / st.session_state.total) * 100
     
     # Check if this observation already exists
     existing = st.session_state.phenol_data[
@@ -92,7 +96,7 @@ def phenol_exp3():
         new_row = {
             "Phenol (ml)": st.session_state.phenol_vol,
             "Water (ml)": st.session_state.water_vol,
-            "% Phenol": (st.session_state.phenol_vol / total) * 100,
+            "% Phenol": percent,
             "Disappear Temp (°C)": st.session_state.disappear,
             "Reappear Temp (°C)": st.session_state.reappear,
             "Mean Temp (°C)": (st.session_state.disappear + st.session_state.reappear) / 2
@@ -115,7 +119,7 @@ def phenol_exp3():
 def phenol_graph():
     st.title("Phase Diagram")
     
-    df = st.session_state.phenol_data.drop_duplicates()  # Ensure no duplicates
+    df = st.session_state.phenol_data.drop_duplicates()
     
     fig, ax = plt.subplots(figsize=(8,5))
     ax.plot(df["% Phenol"], df["Mean Temp (°C)"], 'bo-')
@@ -134,7 +138,7 @@ def phenol_graph():
         st.session_state.page = "home"
 
 # --------------------------
-# CONDUCTOMETRIC TITRATION
+# CONDUCTOMETRIC TITRATION (FULL IMPLEMENTATION)
 # --------------------------
 
 def cond_intro():
@@ -153,7 +157,8 @@ def cond_standardize():
         min_value=0.1, 
         max_value=50.0, 
         value=18.5, 
-        step=0.1
+        step=0.1,
+        key="naoh_standardize"
     )
     
     if st.button("Calculate NaOH Normality"):
@@ -172,8 +177,9 @@ def cond_titration():
         "Add NaOH (ml)", 
         min_value=0.0, 
         max_value=8.0, 
-        value=st.session_state.current_naoh, 
-        step=0.2
+        value=float(st.session_state.current_naoh), 
+        step=0.2,
+        key="naoh_titration"
     )
     
     # Simulate conductance curve
@@ -225,20 +231,17 @@ def cond_graph():
     st.pyplot(fig)
     
     if st.button("Show Results"):
+        st.session_state.hcl_end = hcl_end
+        st.session_state.ch3cooh_end = ch3cooh_end
         st.session_state.page = "cond_results"
 
 def cond_results():
     st.title("Results")
     
-    df = st.session_state.cond_data.sort_values("NaOH (ml)")
-    df['diff'] = df["Conductance (mS)"].diff() / df["NaOH (ml)"].diff()
-    
     try:
-        hcl_end = df.iloc[df['diff'].idxmin()]["NaOH (ml)"]
-        ch3cooh_end = df.iloc[df['diff'].idxmax()]["NaOH (ml)"]
-        
-        hcl_normality = (st.session_state.naoh_normality * hcl_end) / 10
-        ch3cooh_normality = (st.session_state.naoh_normality * (ch3cooh_end - hcl_end)) / 10
+        hcl_normality = (st.session_state.naoh_normality * st.session_state.hcl_end) / 10
+        ch3cooh_normality = (st.session_state.naoh_normality * 
+                            (st.session_state.ch3cooh_end - st.session_state.hcl_end)) / 10
         
         hcl_amount = hcl_normality * 36.5 * 100 / 1000
         ch3cooh_amount = ch3cooh_normality * 60 * 100 / 1000
@@ -271,13 +274,13 @@ def home():
     with col1:
         st.subheader("Phenol-Water CST")
         st.write("Determine critical solution temperature")
-        if st.button("Start CST Experiment", key="phenol"):
+        if st.button("Start CST Experiment", key="phenol_btn"):
             st.session_state.page = "phenol_intro"
     
     with col2:
         st.subheader("Conductometric Titration")
         st.write("Analyze HCl-CH₃COOH mixture")
-        if st.button("Start Titration", key="cond"):
+        if st.button("Start Titration", key="cond_btn"):
             st.session_state.page = "cond_intro"
 
 # Router
