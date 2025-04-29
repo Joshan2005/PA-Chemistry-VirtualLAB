@@ -303,15 +303,15 @@ def cond_results():
         st.session_state.page = "home"
 
 # --------------------------
-# MAIN APP CONTROL
+# MAIN APP CONTROL (WITH REQUESTED TEXT CHANGES)
 # --------------------------
 
 def home():
     st.markdown("""
     <div style='text-align: center; margin-bottom: 2rem;'>
-        <h1 style='color: #2c3e50;'>Chemistry Virtual Lab</h1>
+        <h1 style='color: #2c3e50;'>Welcome to Creative Catalysts</h1>
         <p style='color: #7f8c8d;'>
-            Interactive experiments in physical chemistry
+            A virtual Physical & Analytical Chemistry lab created by Chemical Engineering students of SRMIST
         </p>
     </div>
     """, unsafe_allow_html=True)
